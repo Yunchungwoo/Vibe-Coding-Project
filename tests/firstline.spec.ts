@@ -337,7 +337,9 @@ test("library lists saved text and searches without mutating it", async ({
   await expect(page.getByText("찾는 문장이 아직 없어요.")).toBeVisible();
   await page.getByRole("button", { name: "검색 지우기" }).click();
   await page.locator(".entry-card").click();
-  await expect(page.getByText("읽기 전용", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "글 수정", exact: true }),
+  ).toBeVisible();
   expect((await stored(page)).entries).toHaveLength(1);
 });
 

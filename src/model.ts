@@ -23,6 +23,7 @@ export type Entry = {
   status: EntryStatus;
   createdAt: string;
   archivedAt: string;
+  updatedAt?: string;
 };
 export type Notebook = {
   schemaVersion: 1;
@@ -123,6 +124,7 @@ export function parseNotebook(raw: string): Notebook {
         e.originalText.trim().length > 0 &&
         nullable(e.revisionText) &&
         date(e.archivedAt) &&
+        (e.updatedAt === undefined || date(e.updatedAt)) &&
         e.status ===
           entryStatus(e.originalText, e.revisionText as string | null),
     )

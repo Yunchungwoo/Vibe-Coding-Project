@@ -180,7 +180,9 @@ test("document switching, search and delete preserve the other draft", async ({
   await openList();
   await page.getByLabel("문서 검색").fill("창가");
   await expect(
-    page.getByRole("navigation", { name: "문서 목록" }).getByRole("button"),
+    page
+      .getByRole("navigation", { name: "문서 목록" })
+      .locator(".document-link"),
   ).toHaveCount(1);
   await page.getByRole("button", { name: "창가의 기록", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "문서 본문" })).toContainText(

@@ -25,6 +25,7 @@ import {
   Underline,
   Undo2,
 } from "lucide-react";
+import { DocumentSidebar } from "./DocumentSidebar";
 import { Modal, TextArea } from "./WritingControls";
 import {
   archiveManuscript,
@@ -445,7 +446,11 @@ export function StudioPage({
   navigate: (route: string) => void;
 }) {
   const { book, update, commit, status } = store;
-  const [query, setQuery] = useState("");
+  const [importFeedback, setImportFeedback] = useState<{
+    messages: string[];
+    error: boolean;
+  } | null>(null);
+  const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [listOpen, setListOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [archiveId, setArchiveId] = useState<string | null>(null);
@@ -458,11 +463,11 @@ export function StudioPage({
   useEffect(() => {
     setMessage("");
     archived.current = false;
+    if (doc) setActiveFolderId(doc.folderId);
   }, [selectedId]);
   function create() {
-    const next = newManuscript();
+    const next = newManuscript(activeFolderId);
     update((b) => ({ ...b, documents: [...b.documents, next] }));
-    setQuery("");
     setListOpen(false);
     navigate(`studio/${next.id}`);
   }
@@ -490,71 +495,25 @@ export function StudioPage({
   }
   return (
     <div className={`studio-shell ${listOpen ? "documents-open" : ""}`}>
-      <aside className="document-sidebar" aria-label="작성 중인 문서">
-        <div className="document-sidebar-heading">
-          <h1>나의 원고</h1>
-          <button
-            className="format-button document-list-close"
-            aria-label="문서 목록 닫기"
-            onClick={() => setListOpen(false)}
-          >
-            <ChevronLeft size={18} />
-          </button>
-        </div>
-        <label className="document-search">
-          <Search size={16} />
-          <input
-            aria-label="문서 검색"
-            placeholder="문서 검색…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </label>
-        <div className="document-folder">
-          <span>
-            <Folder size={16} />
-            문서 <small>{book.documents.length}</small>
-          </span>
-          <button
-            className="format-button"
-            onClick={create}
-            aria-label="새 문서"
-          >
-            <Plus size={18} />
-          </button>
-        </div>
-        <nav aria-label="문서 목록">
-          {book.documents
-            .filter((d) => `${d.title} ${d.text}`.includes(query))
-            .map((d) => (
-              <button
-                key={d.id}
-                className={`document-link ${d.id === doc?.id ? "selected" : ""}`}
-                aria-current={d.id === doc?.id ? "page" : undefined}
-                onClick={() => {
-                  navigate(`studio/${d.id}`);
-                  setListOpen(false);
-                }}
-              >
-                <FileText size={17} />
-                <span>{d.title.trim() || "제목 없는 글"}</span>
-              </button>
-            ))}
-        </nav>
-        {query &&
-          !book.documents.some((d) =>
-            `${d.title} ${d.text}`.includes(query),
-          ) && <p className="document-empty-search">찾는 문서가 없어요.</p>}
-        <button className="text-button new-document" onClick={create}>
-          <Plus size={17} />새 문서 만들기
-        </button>
-        <p className="document-sidebar-note">
-          생각이 떠오르는 대로 적어요.
-          <br />
-          완성한 글은 보관함에 남겨요.
-        </p>
-      </aside>
-      <section className="document-workspace" aria-label="자유 글쓰기">
+      <DocumentSidebar
+        report={setImportFeedback}
+        store={store}
+        docId={doc?.id}
+        activeFolderId={activeFolderId}
+        setActiveFolderId={setActiveFolderId}
+        create={create}
+        close={() => setListOpen(false)}
+        select={(selected) => {
+          navigate(`studio/${selected.id}`);
+          setActiveFolderId(selected.folderId);
+          setListOpen(false);
+        }}
+        imported={(id) => {
+          navigate(`studio/${id}`);
+          setListOpen(false);
+        }}
+      />
+      <section className="document-workspace" aria-label="작성 에디터">
         <div className="document-topbar">
           <div>
             <button
@@ -566,9 +525,12 @@ export function StudioPage({
               <PanelLeft size={18} />
             </button>
             <Folder size={16} />
-            <span className="document-crumb">원고 /</span>
+            <span className="document-crumb">
+              {book.folders.find((f) => f.id === doc?.folderId)?.name ?? "원고"}{" "}
+              /
+            </span>
             <span className="current-document">
-              {doc?.title.trim() || (doc ? "제목 없는 글" : "자유 글쓰기")}
+              {doc?.title.trim() || (doc ? "제목 없는 글" : "작성 에디터")}
             </span>
           </div>
           {doc && (
@@ -597,6 +559,24 @@ export function StudioPage({
             </div>
           )}
         </div>
+        {importFeedback && (
+          <div
+            className="import-feedback"
+            role={importFeedback.error ? "alert" : "status"}
+          >
+            <div>
+              {importFeedback.messages.map((text, i) => (
+                <p key={i}>{text}</p>
+              ))}
+            </div>
+            <button
+              className="text-button"
+              onClick={() => setImportFeedback(null)}
+            >
+              확인
+            </button>
+          </div>
+        )}
         {message && !archiveId && !deleteId && (
           <p className="inline-error studio-message" role="alert">
             {message}
@@ -682,8 +662,8 @@ export function StudioPage({
           }}
         >
           <p>
-            본문을 나의 보관함에 읽기 전용으로 남겨요. 원고 목록에서는 빠지고,
-            서식은 제외한 문장 그대로 보관돼요.
+            본문을 나의 보관함에 남기고 그곳에서도 수정할 수 있어요. 원고
+            목록에서는 빠지고, 서식은 제외한 문장 그대로 보관돼요.
           </p>
           <div className="modal-actions">
             <button className="primary" onClick={archive}>

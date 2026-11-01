@@ -38,6 +38,7 @@ import {
   type EntryStatus,
 } from "./model";
 import { useNotebook } from "./useNotebook";
+import { EntryEditor } from "./EntryEditor";
 import { Modal, TextArea } from "./WritingControls";
 const PracticePage = lazy(() =>
   import("./Studio").then((m) => ({ default: m.PracticePage })),
@@ -48,6 +49,7 @@ const StudioPage = lazy(() =>
 import { useStudio, type StudioEntry } from "./studioModel";
 import "./styles.css";
 import "./studio.css";
+import "./organization.css";
 const labels: Record<EntryStatus | "written", string> = {
   revised: "다듬은 글",
   unchanged: "내용 변경 없음",
@@ -118,6 +120,9 @@ export default function App() {
   const [category, setCategory] = useState<Category | "전체">("전체");
   const [pendingPrompt, setPendingPrompt] = useState<Prompt | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editingEntry, setEditingEntry] = useState<Entry | StudioEntry | null>(
+    null,
+  );
   const [message, setMessage] = useState("");
   const [notice, setNotice] = useState("");
   const [menu, setMenu] = useState(false);
@@ -314,7 +319,7 @@ export default function App() {
             aria-current={studioMode ? "page" : undefined}
           >
             <FileText size={19} />
-            자유 글쓰기
+            작성 에디터
           </a>
           <a
             href="#library"
@@ -359,7 +364,7 @@ export default function App() {
                 : route === "practice"
                   ? "문장 연습"
                   : studioMode
-                    ? "자유 글쓰기"
+                    ? "작성 에디터"
                     : writing
                       ? "글쓰기"
                       : "나의 보관함"}
@@ -465,7 +470,7 @@ export default function App() {
               )}
               <section className="daily-card">
                 <div className="daily-content">
-                  <h2>{chosen.title}</h2>
+                  <h2>작성의 순간</h2>
                   <p>오늘의 첫 문장을 함께 기록해봐요.</p>
                   <div className="daily-actions">
                     <button
@@ -477,19 +482,7 @@ export default function App() {
                     </button>
                     <button
                       className="text-button"
-                      onClick={() => {
-                        const next =
-                          prompts[
-                            (prompts.findIndex((p) => p.id === chosen.id) + 1) %
-                              prompts.length
-                          ];
-                        if (
-                          draft &&
-                          (draft.draftText || draft.originalText !== null)
-                        )
-                          setPendingPrompt(next);
-                        else setChosen(next);
-                      }}
+                      onClick={() => navigate("prompts")}
                     >
                       <RefreshCw size={15} />
                       다른 글감
@@ -512,7 +505,7 @@ export default function App() {
                 <button onClick={() => navigate("studio")}>
                   <span>
                     <FileText size={19} />
-                    <strong>자유롭게 글쓰기</strong>
+                    <strong>작성 에디터</strong>
                   </span>
                   <p>빈 페이지에 긴 이야기도 차근차근.</p>
                   <ArrowRight size={17} />
@@ -856,7 +849,7 @@ export default function App() {
                     </button>
                   </div>
                   <p className="archive-hint">
-                    보관한 글은 다시 읽기 전용으로 남아요.
+                    보관한 글은 나의 보관함에서 다시 읽고 수정할 수 있어요.
                   </p>
                 </>
               )}
@@ -948,10 +941,12 @@ export default function App() {
                   <ArrowLeft size={16} />
                   보관함으로
                 </button>
-                <span className="read-only">
-                  <LockKeyhole size={13} />
-                  읽기 전용
-                </span>
+                <button
+                  className="secondary"
+                  onClick={() => setEditingEntry(detail)}
+                >
+                  <PencilLine size={16} />글 수정
+                </button>
               </div>
               {heading(
                 "A PAGE OF YOUR STORY",
@@ -963,6 +958,9 @@ export default function App() {
                   {detail.promptSnapshot.category}
                 </span>
                 <time>{dateText(detail.createdAt)}</time>
+                {detail.updatedAt && (
+                  <span>수정: {dateText(detail.updatedAt)}</span>
+                )}
                 <span className="status-tag">{labels[detail.status]}</span>
               </div>
               {"kind" in detail ? (
@@ -1048,6 +1046,35 @@ export default function App() {
           </footer>
         </main>
       </div>
+      {editingEntry && (
+        <EntryEditor
+          key={editingEntry.id}
+          entry={editingEntry}
+          close={() => setEditingEntry(null)}
+          save={(edited) => {
+            const success =
+              "kind" in edited
+                ? studio.commit((b) => ({
+                    ...b,
+                    entries: b.entries.map((e) =>
+                      e.id === edited.id ? edited : e,
+                    ),
+                  }))
+                : commit((b) => ({
+                    ...b,
+                    entries: b.entries.map((e) =>
+                      e.id === edited.id ? edited : e,
+                    ),
+                  }));
+            if (success) {
+              setEditingEntry(null);
+              setNotice("보관한 글을 수정했어요.");
+              navigate(`entry/${edited.id}`);
+            }
+            return success;
+          }}
+        />
+      )}
       {pendingPrompt && (
         <Modal
           title="쓰던 이야기가 있어요"

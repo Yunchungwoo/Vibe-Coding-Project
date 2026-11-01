@@ -91,7 +91,11 @@ export function useLocalNotebook<T>(
     setStatus("saving");
     timer.current = setTimeout(() => persist(latest.current), 400);
   }
-  function commit(next: T) {
+  function commit(value: T | ((current: T) => T)) {
+    const next =
+      typeof value === "function"
+        ? (value as (current: T) => T)(latest.current)
+        : value;
     if (!persist(next)) return false;
     latest.current = next;
     setBook(next);

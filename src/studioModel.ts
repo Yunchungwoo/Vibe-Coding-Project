@@ -49,9 +49,38 @@ export type PracticeDraft = {
   createdAt: string;
   updatedAt: string;
 };
+export const itemColors = {
+  sage: { name: "초록", value: "#4c7157" },
+  blue: { name: "파랑", value: "#496fa0" },
+  violet: { name: "보라", value: "#8061a5" },
+  rose: { name: "분홍", value: "#a25c76" },
+  amber: { name: "황토", value: "#956a2e" },
+  slate: { name: "회색", value: "#647080" },
+} as const;
+export type ItemColor = keyof typeof itemColors;
+export type WritingFolder = {
+  id: string;
+  name: string;
+  color: ItemColor;
+  createdAt: string;
+};
+export function newFolder(
+  name: string,
+  color: ItemColor = "amber",
+): WritingFolder {
+  if (!name.trim()) throw new Error("empty folder name");
+  return {
+    id: crypto.randomUUID(),
+    name: name.trim(),
+    color,
+    createdAt: new Date().toISOString(),
+  };
+}
 export type Manuscript = {
   id: string;
   title: string;
+  folderId: string | null;
+  color: ItemColor;
   content: JSONContent;
   text: string;
   font: "sans" | "serif";
@@ -66,7 +95,7 @@ export type StudioEntry = {
     id: string;
     title: string;
     question: string;
-    category: "문장 연습" | "자유 글쓰기";
+    category: "문장 연습" | "작성 에디터";
   };
   originalText: string;
   revisionText: null;
@@ -75,16 +104,19 @@ export type StudioEntry = {
   status: "written";
   createdAt: string;
   archivedAt: string;
+  updatedAt?: string;
 };
 export type StudioBook = {
   schemaVersion: 1;
   practice: PracticeDraft | null;
+  folders: WritingFolder[];
   documents: Manuscript[];
   entries: StudioEntry[];
 };
 export const emptyStudio = (): StudioBook => ({
   schemaVersion: 1,
   practice: null,
+  folders: [],
   documents: [],
   entries: [],
 });
@@ -98,11 +130,13 @@ export function newPractice(previous?: string): PracticeDraft {
     updatedAt: now,
   };
 }
-export function newManuscript(): Manuscript {
+export function newManuscript(folderId: string | null = null): Manuscript {
   const now = new Date().toISOString();
   return {
     id: crypto.randomUUID(),
     title: "",
+    folderId,
+    color: "sage",
     content: { type: "doc", content: [{ type: "paragraph" }] },
     text: "",
     font: "sans",
@@ -149,7 +183,7 @@ export function archiveManuscript(book: StudioBook, id: string): StudioBook {
       id,
       title: doc.title.trim() || "제목 없는 글",
       question: "자유롭게 기록한 나의 이야기",
-      category: "자유 글쓰기",
+      category: "작성 에디터",
     },
     originalText: doc.text,
     revisionText: null,
@@ -273,24 +307,100 @@ export function parseStudio(raw: string): StudioBook {
         e.missionSnapshot === null &&
         text(e.reflection) &&
         date(e.archivedAt) &&
+        (e.updatedAt === undefined || date(e.updatedAt)) &&
         object(e.promptSnapshot) &&
         text(e.promptSnapshot.id) &&
         text(e.promptSnapshot.title) &&
         text(e.promptSnapshot.question) &&
-        e.promptSnapshot.category ===
-          (e.kind === "practice" ? "문장 연습" : "자유 글쓰기"),
+        (e.kind === "practice"
+          ? e.promptSnapshot.category === "문장 연습"
+          : ["자유 글쓰기", "작성 에디터"].includes(
+              String(e.promptSnapshot.category),
+            )),
     )
   )
     throw new Error("invalid studio entries");
+  const folders = b.folders === undefined ? [] : b.folders;
+  const color = (value: unknown) =>
+    typeof value === "string" && Object.hasOwn(itemColors, value);
+  if (
+    !Array.isArray(folders) ||
+    !folders.every(
+      (f) => common(f) && text(f.name) && !!f.name.trim() && color(f.color),
+    )
+  )
+    throw new Error("invalid folders");
+  const folderIds = new Set(folders.map((f) => f.id));
+  if (folderIds.size !== folders.length) throw new Error("duplicate folders");
+  if (
+    !b.documents.every(
+      (d) =>
+        (d.folderId === undefined ||
+          d.folderId === null ||
+          folderIds.has(d.folderId)) &&
+        (d.color === undefined || color(d.color)),
+    )
+  )
+    throw new Error("invalid document organization");
   const ids = [
+    ...folders,
     ...b.documents,
     ...b.entries,
     ...(b.practice ? [b.practice] : []),
   ].map((x) => (x as { id: string }).id);
   if (new Set(ids).size !== ids.length) throw new Error("duplicate studio IDs");
-  return b as StudioBook;
+  return {
+    ...b,
+    folders,
+    documents: b.documents.map((d) => ({
+      ...d,
+      folderId: d.folderId === undefined ? null : d.folderId,
+      color: d.color === undefined ? "sage" : d.color,
+    })),
+    entries: b.entries.map((e) => ({
+      ...e,
+      promptSnapshot: {
+        ...e.promptSnapshot,
+        category: e.kind === "document" ? "작성 에디터" : "문장 연습",
+      },
+    })),
+  } as StudioBook;
 }
 export function useStudio() {
   return useLocalNotebook(STUDIO_KEY, emptyStudio, parseStudio);
 }
 export type StudioStore = ReturnType<typeof useStudio>;
+
+export function removeFolder(book: StudioBook, id: string): StudioBook {
+  return {
+    ...book,
+    folders: book.folders.filter((f) => f.id !== id),
+    documents: book.documents.map((d) =>
+      d.folderId === id ? { ...d, folderId: null } : d,
+    ),
+  };
+}
+export function manuscriptFromText(
+  title: string,
+  text: string,
+  folderId: string | null = null,
+): Manuscript {
+  const normalized = text.replace(/\r\n?/g, "\n").replace(/^\uFEFF/, "");
+  if (!normalized.trim()) throw new Error("파일에 가져올 본문이 없어요.");
+  if (normalized.length > 200000)
+    throw new Error("본문이 너무 길어요. 20만 자 이하의 파일을 선택해주세요.");
+  return {
+    ...newManuscript(folderId),
+    title,
+    text: normalized,
+    content: {
+      type: "doc",
+      content: normalized
+        .split("\n")
+        .map((line) => ({
+          type: "paragraph",
+          ...(line ? { content: [{ type: "text", text: line }] } : {}),
+        })),
+    },
+  };
+}
