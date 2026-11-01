@@ -29,7 +29,7 @@ test("home, prompt filtering, daily stability and responsive layout", async ({
   await page.goto("/");
   await expect(
     page.getByRole("heading", {
-      name: /당신의 이야기는.*한 줄.*이면 충분해요/,
+      name: /이야기의 첫 시작은 한 줄에서\./,
     }),
   ).toBeVisible();
   const title = await page.locator(".daily-card h2").textContent();

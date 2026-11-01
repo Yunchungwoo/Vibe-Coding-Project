@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -7,17 +7,16 @@ import {
   ChevronRight,
   CircleCheck,
   Feather,
-  Flower2,
   FolderHeart,
+  FileText,
+  Shuffle,
   Leaf,
   LockKeyhole,
-  Menu,
   PencilLine,
   Plus,
   RefreshCw,
   Search,
   Sparkles,
-  Sun,
   Trash2,
   X,
 } from "lucide-react";
@@ -39,11 +38,21 @@ import {
   type EntryStatus,
 } from "./model";
 import { useNotebook } from "./useNotebook";
+import { Modal, TextArea } from "./WritingControls";
+const PracticePage = lazy(() =>
+  import("./Studio").then((m) => ({ default: m.PracticePage })),
+);
+const StudioPage = lazy(() =>
+  import("./Studio").then((m) => ({ default: m.StudioPage })),
+);
+import { useStudio, type StudioEntry } from "./studioModel";
 import "./styles.css";
-const labels: Record<EntryStatus, string> = {
+import "./studio.css";
+const labels: Record<EntryStatus | "written", string> = {
   revised: "다듬은 글",
   unchanged: "내용 변경 없음",
   skipped: "퇴고 건너뜀",
+  written: "보관한 글",
 };
 const dateText = (date: string) =>
   new Date(date).toLocaleDateString("ko-KR", {
@@ -66,165 +75,6 @@ function useRoute() {
       setRoute(next);
     },
   };
-}
-function Illustration() {
-  return (
-    <svg className="illustration" viewBox="0 0 310 300" aria-hidden="true">
-      <defs>
-        <pattern id="paper" width="6" height="6" patternUnits="userSpaceOnUse">
-          <circle cx="1" cy="1" r=".5" fill="#54705a" opacity=".12" />
-        </pattern>
-      </defs>
-      <circle cx="160" cy="137" r="108" fill="#e2e7d9" />
-      <circle cx="160" cy="137" r="108" fill="url(#paper)" />
-      <path
-        d="M71 218V90a75 75 0 0 1 150 0v128M65 218h163M146 23v192M72 116h147"
-        stroke="#82937a"
-        strokeWidth="2"
-        fill="none"
-      />
-      <path
-        d="M90 79q20-34 39-23M165 47q27 4 37 30"
-        stroke="#fffdf3"
-        strokeWidth="3"
-        fill="none"
-      />
-      <path
-        d="M24 252q124-10 261 0"
-        stroke="#7c8972"
-        strokeWidth="1.5"
-        fill="none"
-      />
-      <path
-        d="m80 230 59-13 62 17-55 15z"
-        fill="#f8f5e7"
-        stroke="#68775f"
-        strokeWidth="1.5"
-      />
-      <path
-        d="m80 230 2 9 64 16 55-15v-6M146 249v6m-51-23 41-9m-30 14 32-7"
-        fill="none"
-        stroke="#68775f"
-        strokeWidth="1.5"
-      />
-      <path
-        d="M177 205h47l-4 33q-19 12-39 0z"
-        fill="#f9f8f0"
-        stroke="#68775f"
-        strokeWidth="2"
-      />
-      <path
-        d="M224 212q24-6 18 14-3 9-21 5M191 193q-9-12 0-21m11 22q11-10 2-22"
-        fill="none"
-        stroke="#68775f"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-      />
-      <path
-        d="M49 248q4-42-7-88m10 42q28-16 22-37-26 6-25 30m0 26q-29-4-31-27 25-2 31 20m-7-40q-25-13-18-34 24 12 18 34"
-        fill="#a3b18d"
-        stroke="#68775f"
-        strokeWidth="1.5"
-      />
-      <path
-        d="m248 89 3-7m-4 16 8 2m-18-9-7-1"
-        stroke="#a0a87e"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <circle cx="256" cy="159" r="3" fill="#a0a87e" />
-    </svg>
-  );
-}
-function Modal({
-  title,
-  children,
-  close,
-}: {
-  title: string;
-  children: ReactNode;
-  close: () => void;
-}) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement;
-    const element = dialog.current;
-    element?.showModal();
-    return () => {
-      element?.close();
-      previous?.focus();
-    };
-  }, []);
-  return (
-    <dialog
-      ref={dialog}
-      className="modal"
-      onCancel={(e) => {
-        e.preventDefault();
-        close();
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) close();
-      }}
-      aria-labelledby="modal-title"
-    >
-      <button
-        className="icon-button modal-close"
-        onClick={close}
-        aria-label="닫기"
-      >
-        <X size={20} />
-      </button>
-      <div className="modal-symbol">
-        <Leaf size={25} />
-      </div>
-      <h2 id="modal-title">{title}</h2>
-      {children}
-    </dialog>
-  );
-}
-function TextArea({
-  value,
-  onChange,
-  id,
-  label,
-  placeholder,
-  readOnly = false,
-}: {
-  value: string;
-  onChange: (s: string) => void;
-  id: string;
-  label: string;
-  placeholder?: string;
-  readOnly?: boolean;
-}) {
-  const ref = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    if (ref.current) {
-      ref.current.style.height = "auto";
-      ref.current.style.height = `${Math.max(240, ref.current.scrollHeight)}px`;
-    }
-  }, [value]);
-  return (
-    <>
-      <label className="editor-label" htmlFor={id}>
-        {label}
-        {readOnly && (
-          <span>
-            <LockKeyhole size={13} /> 원문 보존 중
-          </span>
-        )}
-      </label>
-      <textarea
-        ref={ref}
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        readOnly={readOnly}
-        placeholder={placeholder}
-      />
-    </>
-  );
 }
 function Compare({
   original,
@@ -256,7 +106,14 @@ function Compare({
 }
 export default function App() {
   const { book, update, commit, status, issue, retry } = useNotebook();
+  const studio = useStudio();
+  const allEntries: (Entry | StudioEntry)[] = [
+    ...book.entries,
+    ...studio.book.entries,
+  ].sort((a, b) => b.archivedAt.localeCompare(a.archivedAt));
   const { route, go } = useRoute();
+  const studioMode = route === "studio" || route.startsWith("studio/");
+  const storageIssue = issue || studio.issue;
   const [chosen, setChosen] = useState<Prompt>(dailyPrompt);
   const [category, setCategory] = useState<Category | "전체">("전체");
   const [pendingPrompt, setPendingPrompt] = useState<Prompt | null>(null);
@@ -268,7 +125,7 @@ export default function App() {
   const main = useRef<HTMLElement>(null);
   const draft = book.activeDraft;
   const detail = route.startsWith("entry/")
-    ? book.entries.find((e) => e.id === route.slice(6))
+    ? allEntries.find((e) => e.id === route.slice(6))
     : undefined;
   const writing = ["write", "revise", "preview"].includes(route);
   const navigate = (next: string) => {
@@ -373,7 +230,7 @@ export default function App() {
       : status === "failed"
         ? "저장 실패"
         : "저장됨";
-  function entryCard(e: Entry) {
+  function entryCard(e: Entry | StudioEntry) {
     return (
       <button
         className="entry-card"
@@ -400,13 +257,13 @@ export default function App() {
   }
   const heading = (eyebrow: string, title: string, description: string) => (
     <div className="page-heading">
-      <span className="eyebrow">{eyebrow}</span>
+      {eyebrow && <span className="eyebrow">{eyebrow}</span>}
       <h1>{title}</h1>
       <p>{description}</p>
     </div>
   );
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${studioMode ? "studio-mode" : ""}`}>
       <aside className={`sidebar ${menu ? "is-open" : ""}`}>
         <a
           className="brand"
@@ -442,24 +299,34 @@ export default function App() {
             글감 둘러보기
           </a>
           <a
+            href="#practice"
+            onClick={() => setMenu(false)}
+            className={route === "practice" ? "active" : ""}
+            aria-current={route === "practice" ? "page" : undefined}
+          >
+            <Shuffle size={19} />
+            문장 연습
+          </a>
+          <a
+            href="#studio"
+            onClick={() => setMenu(false)}
+            className={studioMode ? "active" : ""}
+            aria-current={studioMode ? "page" : undefined}
+          >
+            <FileText size={19} />
+            자유 글쓰기
+          </a>
+          <a
             href="#library"
             onClick={() => setMenu(false)}
             className={route === "library" || detail ? "active" : ""}
             aria-current={route === "library" ? "page" : undefined}
           >
             <FolderHeart size={19} />
-            나의 보관함<span className="nav-count">{book.entries.length}</span>
+            나의 보관함<span className="nav-count">{allEntries.length}</span>
           </a>
         </nav>
         <div className="sidebar-bottom">
-          <div className="note-drawing">
-            <Flower2 size={30} strokeWidth={1.2} />
-            <span>
-              잘 쓰는 것보다
-              <br />
-              나답게 쓰는 것.
-            </span>
-          </div>
           <p>
             서두르지 않아도 괜찮아요.
             <br />
@@ -485,59 +352,70 @@ export default function App() {
             첫줄
           </div>
           <div className="breadcrumb">
-            나의 작은 작업실 <span>/</span>{" "}
             {route === "home"
               ? "오늘의 글감"
               : route === "prompts"
                 ? "글감 둘러보기"
-                : writing
-                  ? "글쓰기"
-                  : "나의 보관함"}
+                : route === "practice"
+                  ? "문장 연습"
+                  : studioMode
+                    ? "자유 글쓰기"
+                    : writing
+                      ? "글쓰기"
+                      : "나의 보관함"}
           </div>
           <div className="topbar-right">
             <span className="today">
-              <Sun size={16} />
               {new Date().toLocaleDateString("ko-KR", {
                 month: "long",
                 day: "numeric",
                 weekday: "long",
               })}
             </span>
-            <span className="avatar" role="img" aria-label="개인 글쓰기 공간">
-              <Leaf size={18} />
-            </span>
-            <button
-              className="icon-button menu-toggle"
-              aria-label="메뉴 열기"
-              aria-expanded={menu}
-              onClick={() => setMenu(!menu)}
-            >
-              <Menu size={22} />
-            </button>
           </div>
+          <button
+            className="text-button menu-toggle"
+            aria-label="메뉴 열기"
+            aria-expanded={menu}
+            onClick={() => setMenu(!menu)}
+          >
+            메뉴
+          </button>
         </header>
-        <main ref={main} tabIndex={-1} id="main-content">
-          {issue && (
+        <main
+          ref={main}
+          tabIndex={-1}
+          id="main-content"
+          className={studioMode ? "studio-main" : undefined}
+        >
+          {storageIssue && (
             <div className="alert" role="alert">
               <strong>기존 글을 안전하게 보존하고 있어요.</strong>
-              <p>{issue}</p>
+              <p>{storageIssue}</p>
               <p>
                 새로 쓴 내용은 복사해두세요. 자동 복구가 어려우면 브라우저
                 데이터를 지우지 말고 도움을 요청해주세요.
               </p>
             </div>
           )}
-          {status === "failed" && !issue && (
-            <div className="alert" role="alert">
-              <p>
-                저장하지 못했어요. 작성 내용은 복사해두고 다시 시도해주세요.
-              </p>
-              <button className="text-button" onClick={retry}>
-                <RefreshCw size={16} />
-                저장 다시 시도
-              </button>
-            </div>
-          )}
+          {(status === "failed" || studio.status === "failed") &&
+            !storageIssue && (
+              <div className="alert" role="alert">
+                <p>
+                  저장하지 못했어요. 작성 내용은 복사해두고 다시 시도해주세요.
+                </p>
+                <button
+                  className="text-button"
+                  onClick={() => {
+                    if (status === "failed") retry();
+                    if (studio.status === "failed") studio.retry();
+                  }}
+                >
+                  <RefreshCw size={16} />
+                  저장 다시 시도
+                </button>
+              </div>
+            )}
           {notice && (
             <div className="notice" role="status">
               <CircleCheck size={18} />
@@ -555,21 +433,12 @@ export default function App() {
             <>
               <div className="home-heading">
                 <div>
-                  <span className="eyebrow">
-                    <span className="tiny-line" />A LITTLE SPACE FOR YOUR WORDS
-                  </span>
                   <h1>
-                    당신의 이야기는
-                    <br />
-                    <em>한 줄</em>이면 충분해요.
+                    이야기의 첫 시작은 <em>한 줄에서.</em>
                   </h1>
                   <p>
                     잘 쓰려는 마음은 잠시 내려놓고, 오늘의 생각을 남겨보세요.
                   </p>
-                </div>
-                <div className="small-flower">
-                  <Flower2 size={55} strokeWidth={1} />
-                  <span>조금씩, 나답게</span>
                 </div>
               </div>
               {draft && (
@@ -596,15 +465,8 @@ export default function App() {
               )}
               <section className="daily-card">
                 <div className="daily-content">
-                  <div className="daily-top">
-                    <span className="eyebrow">
-                      <Sun size={15} />
-                      오늘의 글감
-                    </span>
-                    <span className="category">{chosen.category}</span>
-                  </div>
                   <h2>{chosen.title}</h2>
-                  <p>{chosen.question}</p>
+                  <p>오늘의 첫 문장을 함께 기록해봐요.</p>
                   <div className="daily-actions">
                     <button
                       className="primary"
@@ -637,54 +499,25 @@ export default function App() {
                     한 문장만 적어도 괜찮아요.
                   </span>
                 </div>
-                <div className="daily-art">
-                  <Illustration />
-                  <span>A quiet moment, a new beginning.</span>
-                </div>
               </section>
-              <section className="journey">
-                <div className="section-label">
-                  나만의 문장을 만나는 세 걸음
-                  <span>잘 쓰기보다, 써보는 연습</span>
-                </div>
-                <div className="steps-cards">
-                  <div>
-                    <span className="step-icon">
-                      <PencilLine size={20} />
-                    </span>
-                    <div>
-                      <h3>
-                        <span>01</span>가볍게 적고
-                      </h3>
-                      <p>떠오른 생각을 한두 문장으로</p>
-                    </div>
-                  </div>
-                  <ArrowRight className="step-arrow" size={18} />
-                  <div>
-                    <span className="step-icon">
-                      <Feather size={20} />
-                    </span>
-                    <div>
-                      <h3>
-                        <span>02</span>조금 다듬고
-                      </h3>
-                      <p>작은 미션으로 새로운 표현을</p>
-                    </div>
-                  </div>
-                  <ArrowRight className="step-arrow" size={18} />
-                  <div>
-                    <span className="step-icon">
-                      <FolderHeart size={20} />
-                    </span>
-                    <div>
-                      <h3>
-                        <span>03</span>나답게 남겨요
-                      </h3>
-                      <p>처음과 달라진 문장을 함께</p>
-                    </div>
-                  </div>
-                </div>
-              </section>
+              <div className="writing-options">
+                <button onClick={() => navigate("practice")}>
+                  <span>
+                    <Shuffle size={19} />
+                    <strong>한 단어로 문장 연습</strong>
+                  </span>
+                  <p>랜덤 단어에서 나만의 표현을 찾아요.</p>
+                  <ArrowRight size={17} />
+                </button>
+                <button onClick={() => navigate("studio")}>
+                  <span>
+                    <FileText size={19} />
+                    <strong>자유롭게 글쓰기</strong>
+                  </span>
+                  <p>빈 페이지에 긴 이야기도 차근차근.</p>
+                  <ArrowRight size={17} />
+                </button>
+              </div>
               <section className="suggestions">
                 <div className="section-title">
                   <div>
@@ -716,7 +549,7 @@ export default function App() {
                   )}
                 </div>
               </section>
-              {book.entries.length > 0 && (
+              {allEntries.length > 0 && (
                 <section className="recent">
                   <div className="section-title">
                     <h2>차곡차곡 쌓인 나의 문장</h2>
@@ -729,16 +562,26 @@ export default function App() {
                     </button>
                   </div>
                   <div className="entry-grid">
-                    {book.entries.slice(0, 2).map(entryCard)}
+                    {allEntries.slice(0, 2).map(entryCard)}
                   </div>
                 </section>
               )}
             </>
           )}
+          {route === "practice" && (
+            <Suspense fallback={<p role="status">연습장을 열고 있어요…</p>}>
+              <PracticePage store={studio} navigate={navigate} />
+            </Suspense>
+          )}
+          {studioMode && (
+            <Suspense fallback={<p role="status">원고를 열고 있어요…</p>}>
+              <StudioPage store={studio} route={route} navigate={navigate} />
+            </Suspense>
+          )}
           {route === "prompts" && (
             <>
               {heading(
-                "FIND YOUR FIRST LINE",
+                "",
                 "어디서부터 시작해볼까요?",
                 "작은 풍경, 오래된 기억, 문득 떠오른 마음. 마음이 닿는 글감을 골라보세요.",
               )}
@@ -1027,15 +870,15 @@ export default function App() {
           {route === "library" && (
             <>
               {heading(
-                "YOUR WORDS, COLLECTED",
+                "",
                 "차곡차곡, 나의 보관함",
                 "처음의 생각도, 새로 찾은 표현도. 지나온 문장들을 다시 만나보세요.",
               )}
               <div className="library-toolbar">
                 <span>
-                  나의 글 <strong>{book.entries.length}</strong>편
+                  나의 글 <strong>{allEntries.length}</strong>편
                 </span>
-                {book.entries.length > 0 && (
+                {allEntries.length > 0 && (
                   <label className="search">
                     <Search size={17} />
                     <input
@@ -1047,7 +890,7 @@ export default function App() {
                   </label>
                 )}
               </div>
-              {book.entries.length === 0 ? (
+              {allEntries.length === 0 ? (
                 <div className="empty-state">
                   <div className="empty-art">
                     <FolderHeart size={46} strokeWidth={1} />
@@ -1067,7 +910,7 @@ export default function App() {
               ) : (
                 <>
                   <div className="entry-grid">
-                    {book.entries
+                    {allEntries
                       .filter((e) =>
                         `${e.promptSnapshot.title} ${e.originalText} ${e.revisionText ?? ""}`.includes(
                           query,
@@ -1075,7 +918,7 @@ export default function App() {
                       )
                       .map(entryCard)}
                   </div>
-                  {!book.entries.some((e) =>
+                  {!allEntries.some((e) =>
                     `${e.promptSnapshot.title} ${e.originalText} ${e.revisionText ?? ""}`.includes(
                       query,
                     ),
@@ -1122,10 +965,17 @@ export default function App() {
                 <time>{dateText(detail.createdAt)}</time>
                 <span className="status-tag">{labels[detail.status]}</span>
               </div>
-              <Compare
-                original={detail.originalText}
-                revision={detail.revisionText}
-              />
+              {"kind" in detail ? (
+                <section className="paper archived-writing">
+                  <h2>내가 쓴 글</h2>
+                  <p className="writing-text">{detail.originalText}</p>
+                </section>
+              ) : (
+                <Compare
+                  original={detail.originalText}
+                  revision={detail.revisionText}
+                />
+              )}
               {detail.missionSnapshot && (
                 <div className="mission-summary">
                   <Sparkles size={18} />
@@ -1173,8 +1023,10 @@ export default function App() {
             "write",
             "revise",
             "preview",
+            "practice",
           ].includes(route) &&
-            !route.startsWith("entry/") && (
+            !route.startsWith("entry/") &&
+            !studioMode && (
               <div className="empty-state">
                 <h1>새로운 첫줄로 돌아갈까요?</h1>
                 <button className="primary" onClick={() => navigate("home")}>
@@ -1230,7 +1082,7 @@ export default function App() {
           }}
         >
           <p>
-            처음 쓴 글과 다듬은 글, 메모가 함께 삭제돼요. 삭제한 글은 되돌릴 수
+            선택한 글과 함께 보관한 내용이 삭제돼요. 삭제한 글은 되돌릴 수
             없어요.
           </p>
           <div className="modal-actions">
@@ -1238,10 +1090,17 @@ export default function App() {
               className="danger-button"
               onClick={() => {
                 if (
-                  commit({
-                    ...book,
-                    entries: book.entries.filter((e) => e.id !== deleteId),
-                  })
+                  studio.book.entries.some((e) => e.id === deleteId)
+                    ? studio.commit({
+                        ...studio.book,
+                        entries: studio.book.entries.filter(
+                          (e) => e.id !== deleteId,
+                        ),
+                      })
+                    : commit({
+                        ...book,
+                        entries: book.entries.filter((e) => e.id !== deleteId),
+                      })
                 ) {
                   setDeleteId(null);
                   setNotice("글을 삭제했어요.");

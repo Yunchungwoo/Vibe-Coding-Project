@@ -1,36 +1,35 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  emptyNotebook,
-  parseNotebook,
-  STORAGE_KEY,
-  type Notebook,
-} from "./model";
+import { emptyNotebook, parseNotebook, STORAGE_KEY } from "./model";
 export type SaveState = "saved" | "saving" | "failed";
-function load() {
+function load<T>(key: string, empty: () => T, parse: (raw: string) => T) {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(key);
     try {
       return {
-        book: raw === null ? emptyNotebook() : parseNotebook(raw),
+        book: raw === null ? empty() : parse(raw),
         issue: "",
       };
     } catch {
       return {
-        book: emptyNotebook(),
+        book: empty(),
         issue:
           "저장된 글을 읽을 수 없어요. 데이터가 손상되었거나 지원하지 않는 형식이에요. 기존 데이터는 그대로 보존했어요.",
       };
     }
   } catch {
     return {
-      book: emptyNotebook(),
+      book: empty(),
       issue:
         "이 브라우저의 저장 공간에 접근할 수 없어요. 브라우저의 저장 권한을 확인해주세요.",
     };
   }
 }
-export function useNotebook() {
-  const [initial] = useState(load);
+export function useLocalNotebook<T>(
+  key: string,
+  empty: () => T,
+  parse: (raw: string) => T,
+) {
+  const [initial] = useState(() => load(key, empty, parse));
   const [book, setBook] = useState(initial.book);
   const [status, setStatus] = useState<SaveState>(
     initial.issue ? "failed" : "saved",
@@ -44,7 +43,7 @@ export function useNotebook() {
   // Capture the loaded snapshot to avoid overwriting changes made in another tab.
   if (lastRaw.current === undefined) {
     try {
-      lastRaw.current = localStorage.getItem(STORAGE_KEY);
+      lastRaw.current = localStorage.getItem(key);
     } catch {
       lastRaw.current = null;
     }
@@ -53,14 +52,14 @@ export function useNotebook() {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
   }
-  function persist(next: Notebook) {
+  function persist(next: T) {
     cancel();
     if (blocked.current) {
       setStatus("failed");
       return false;
     }
     try {
-      if (localStorage.getItem(STORAGE_KEY) !== lastRaw.current) {
+      if (localStorage.getItem(key) !== lastRaw.current) {
         blocked.current = true;
         setIssue(
           "다른 탭에서 보관함이 변경되었어요. 이곳의 작성 내용을 복사한 뒤 새로고침해주세요. 기존 글은 덮어쓰지 않았어요.",
@@ -69,7 +68,7 @@ export function useNotebook() {
         return false;
       }
       const raw = JSON.stringify(next);
-      localStorage.setItem(STORAGE_KEY, raw);
+      localStorage.setItem(key, raw);
       lastRaw.current = raw;
       dirty.current = false;
       setStatus("saved");
@@ -79,7 +78,12 @@ export function useNotebook() {
       return false;
     }
   }
-  function update(next: Notebook) {
+  function update(value: T | ((current: T) => T)) {
+    const next =
+      typeof value === "function"
+        ? (value as (current: T) => T)(latest.current)
+        : value;
+    if (next === latest.current) return;
     latest.current = next;
     setBook(next);
     dirty.current = true;
@@ -87,7 +91,7 @@ export function useNotebook() {
     setStatus("saving");
     timer.current = setTimeout(() => persist(latest.current), 400);
   }
-  function commit(next: Notebook) {
+  function commit(next: T) {
     if (!persist(next)) return false;
     latest.current = next;
     setBook(next);
@@ -124,4 +128,8 @@ export function useNotebook() {
     issue,
     retry: () => persist(latest.current),
   };
+}
+
+export function useNotebook() {
+  return useLocalNotebook(STORAGE_KEY, emptyNotebook, parseNotebook);
 }
