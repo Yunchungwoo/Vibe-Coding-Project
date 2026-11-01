@@ -1,2 +1,64 @@
-# Vibe-Coding-Project
-App Development Project Using Vibe Coding for an Artificial Intelligence Programming Assignment.
+# 첫줄 · Firstline
+
+한 문장에서 시작해, 직접 고쳐 쓰며 나만의 표현을 발견하는 글쓰기 웹앱.
+
+![첫줄 데스크톱 홈 화면](docs/images/home-desktop.png)
+
+## 첫 버전 기능
+
+- 관찰·기억·상상·감정으로 나눈 자체 작성 글감 24개와 현지 날짜별 오늘의 글감
+- 한 문장부터 작성, 글자 수, 초안 자동 저장, 재방문 시 이어 쓰기
+- 원문을 보존하는 퇴고 미션 8개, 미션 교체·직접 수정·건너뛰기
+- 수정 전후 비교와 선택 메모, 읽기 전용 보관함, 검색, 삭제 확인
+- 변경됨·변경 없음·건너뜀 구분, 중복 보관 방지
+- 저장 실패 재시도, 손상 데이터·지원하지 않는 형식의 덮어쓰기 방지
+- 360px 모바일과 1280px 데스크톱, 키보드 조작, 대비·라벨 자동 검사
+
+회원가입·서버·외부 AI API·분석 추적 없이 동작합니다. 글은 해당 사이트 주소의 브라우저 localStorage에만 저장됩니다. 다른 기기나 브라우저·도메인에서는 이어볼 수 없으며, 브라우저 데이터를 삭제하면 사라질 수 있습니다. 공용 기기에서는 같은 브라우저를 쓰는 사람이 글을 볼 수 있습니다.
+
+## 실행
+
+Node.js 22 이상 권장(검증 환경: Node.js 24.19.0, npm 11.9.0).
+
+```bash
+npm ci
+npm run dev
+```
+
+첫줄은 React 19 + TypeScript + Vite로 구성한 클라이언트 웹앱입니다. 환경 변수나 API 키는 필요하지 않습니다.
+
+```bash
+npm run build       # TypeScript 검사 + dist/ 프로덕션 빌드
+npm run preview     # 빌드 결과를 로컬에서 확인
+npm test            # 데이터 불변 조건 단위 테스트 8개
+npm run test:e2e    # 모바일·데스크톱 Chromium 브라우저 테스트 34개
+```
+
+클라우드 환경에는 `/usr/bin/chromium`이 준비되어 있습니다. 다른 개발 환경에서는 Chromium을 설치하고 실행 파일 경로를 지정하세요.
+
+```bash
+CHROMIUM_PATH=/path/to/chromium npm run test:e2e
+```
+
+Playwright는 필요할 때 개발 서버를 자동으로 시작합니다. 테스트는 별도 브라우저 컨텍스트를 사용하며 실제 사용자 글을 읽거나 변경하지 않습니다. 화면 캡처는 `test-results/`에 생성됩니다.
+
+## 구성
+
+- `src/content.ts`: 글감·미션과 기기 현지 날짜별 글감 선택
+- `src/model.ts`: 버전 1 저장 구조, 원문 스냅샷, 보관 상태와 유효성 검사
+- `src/useNotebook.ts`: 지연 자동 저장, 새로고침 직전 저장, 저장 실패·다른 탭 충돌 보호
+- `src/App.tsx`: 홈 → 작성 → 퇴고 → 전후 비교 → 보관함
+- `src/styles.css`: 반응형 디자인과 키보드 초점 표시
+- `src/model.test.ts`, `tests/`: 기능·예외·접근성 검증
+
+## 구현 기록
+
+- [제품 요구사항](PRD.md)
+- [완료 체크리스트](TodoList.md)
+- [프로젝트 개발 지침](SKILL.md)
+- [검증 절차와 실제 결과](docs/VALIDATION.md)
+- [모바일 화면](docs/images/home-mobile.png)
+
+초기 작업 브랜치는 `work`입니다. 실행 환경, 콘텐츠·모델, 작성·퇴고, 보관·예외 처리, 최종 검증 문서 단위로 커밋하고 각 커밋을 GitHub에 푸시했습니다.
+
+이 세션에는 Sites 플러그인 도구가 제공되지 않아 Sites 제작·게시와 공개 URL 검증은 수행하지 못했습니다. 현재 결과물은 저장소의 실행 가능한 웹앱과 `dist/` 정적 빌드입니다. 실제 사용자 대상 사용성 검증은 별도 진행이 필요합니다.
